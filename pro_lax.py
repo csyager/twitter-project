@@ -1,19 +1,54 @@
 from main import *
 
-followers_of_pll = []
-followers_of_mll = []
-followers_of_both = []
+def update_data():
 
-def reload_data():
-    followers_of_pll = api.GetFollowerIDs(screen_name="PremierLacrosse")
-    followers_of_mll = api.GetFollowerIDs(screen_name="MLL_Lacrosse")
-    followers_of_both.clear
-    for follower in followers_of_pll:
-        if follower in followers_of_mll:
-            followers_of_both.append(follower)
+    followers_of_pll = api.GetFollowers(screen_name="PremierLacrosse")
+    followers_of_mll = api.GetFollowers(screen_name="MLL_Lacrosse")
+
+    for f in followers_of_mll:
+        SQL = "INSERT INTO mll_followers (screen_name, twitter_id) VALUES (%s, %s)"
+        VALUES = (f.screen_name, f.id)
+        cur.execute(SQL, VALUES)
+        SQL = "INSERT INTO both_followers (screen_name, twitter_id) VALUES (%s, %s)"
+        cur.execute(SQL, VALUES)
+    
+    for f in followers_of_pll:
+        SQL = "INSERT INTO pll_followers (screen_name, twitter_id) VALUES (%s, %s)"
+        VALUES = (f.screen_name, f.id)
+        cur.execute(SQL, VALUES)
+        SQL = "INSERT INTO both_followers (screen_name, twitter_id) VALUES (%s, %s)"
+        cur.execute(SQL, VALUES)
 
 
 def print_data():
-    print("PLL: " + str(len(followers_of_pll)))
-    print("MLL: " + str(len(followers_of_mll)))
-    print("BOTH: " + str(len(followers_of_both)))
+    cur.execute("select * from mll_followers")
+    results = cur.fetchall()
+    print("MLL")
+    for r in results:
+        print(r)
+    cur.execute("select * from pll_followers")
+    results = cur.fetchall()
+    print(">>>>>>>>>>")
+    print("PLL")
+    for r in results:
+        print(r)
+    cur.execute("select * from both_followers")
+    results = cur.fetchall()
+    print(">>>>>>>>>>")
+    for r in results:
+        print(r)
+
+
+def main():
+    while True:
+        command = input("Press u to update data, press p to print, press q to quit\n")
+        if command == "u":
+            update_data()
+            logging.info("Starting update_data thread")
+        if command == "p":
+            print_data()
+        if command == "q":
+            quit()
+
+if __name__ == "__main__":
+    main()
