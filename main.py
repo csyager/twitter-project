@@ -2,6 +2,7 @@ import twitter
 import os
 from dotenv import load_dotenv
 import psycopg2
+from psycopg2.extensions import AsIs
 import logging
 import threading
 import time

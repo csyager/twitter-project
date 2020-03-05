@@ -60,7 +60,7 @@ for winner_line in winners_file:
                 this_row = row
     
     if this_row is None:
-        logging.error("Row corresponding to year not found")
+        logging.error("Career Stats Row corresponding to year not found")
     else:
         # tracks number of currently viewed column
         count = 0
@@ -73,6 +73,72 @@ for winner_line in winners_file:
             else:
                 attr.append(col.string.strip())
             count += 1
+
+    goalie_row = None
+    # parses Goalkeepers table
+    for row in soup.findAll('table', class_='statstable')[1].findAll('tr'):
+        for col in row.findAll('td'):
+            if "-" + year[2:] in str(col.contents):
+                goalie_row = row
+    
+    if goalie_row is None:
+        logging.error("Goalkeeper Row corresponding to year not found")
+    else:
+        count = 0
+        for col in goalie_row.findAll('td'):
+            if count < 4:
+                count += 1
+            elif col.string.strip() == "-":
+                attr.append("0")
+                count += 1
+            else:
+                attr.append(col.string.strip())
+                count += 1
+    
+    ranking_rows = []
+    # parse ranking table
+    try:
+        for row in soup.findAll('table', {"cellpadding": "4"})[0].findAll('tr'):
+            col = row.find('td').contents[0].string.strip()
+            if "-" + year[2:] in col:
+                ranking_rows.append(row)
+    except IndexError:
+        continue
+    
+
+    rankings = {}
+    if len(ranking_rows) != 0:
+        for ranking_row in ranking_rows:
+            count = 0
+            cols = ranking_row.findAll('td')
+            category = cols[1].a.string.strip()
+            category_code = ""
+            if category == "Points Per Game":
+                category_code = "ppg_rank"
+            elif category == "Goals Per Game":
+                category_code = "gpg_rank"
+            elif category == "Assists Per Game":
+                category_code = "apg_rank"
+            elif category == "Save Percentage":
+                category_code = "save_pct_rank"
+            elif category == "Goals-Against Average":
+                category_code = "goals_against_average_rank"
+            elif category == "Saves Per Game":
+                category_code = "saves_per_game_rank"
+            elif category == "Ground Balls Per Game":
+                category_code = "gb_per_game_ranking"
+            elif category == "Caused Turnovers Per Game":
+                category_code = "caused_turnover_per_game_ranking"
+            elif category == "Shot Percentage":
+                category_code = "shot_pct_rank"
+            elif category == "Individual Man-up Goals":
+                category_code = "man_up_goals_rank"
+            else:
+                logging.error("No category code exists for category '" + category + "'")
+                continue
+            rank = cols[2].string.strip()
+            rankings[category_code] = rank
+
 
     # query the database table for the player and year to see if data already exists
     SQL = ("SELECT * FROM tewaaraton_winners WHERE name = %s AND academic_year = %s;")
@@ -88,17 +154,28 @@ for winner_line in winners_file:
     # record for this name and academic year doesn't exist - add to table
     if new_record:
         SQL = ("INSERT INTO tewaaraton_winners "
-                "(name, school, class, academic_year, position, gp, goals, gpg, assists, apg, tp, ppg, ground_balls, gbpg, fo_wins, fo_losses, fo_pct) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);")
-        VALUES = (attr[0], school, attr[1], attr[2], attr[3], int(attr[4]), int(attr[5]), float(attr[6]), int(attr[7]), float(attr[8]), int(attr[9]), float(attr[10]), int(attr[11]), float(attr[12]), int(attr[13]), int(attr[14]), float(attr[15]))
+                "(name, school, class, academic_year, position, gp, goals, gpg, assists, apg, tp, ppg, ground_balls, gbpg, fo_wins, fo_losses, fo_pct, goalie_ga, goalie_ga_avg, goalie_saves, goalie_save_pct) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);")
+        VALUES = (attr[0], school, attr[1], attr[2], attr[3], int(attr[4]), int(attr[5]), float(attr[6]), int(attr[7]), float(attr[8]), int(attr[9]), float(attr[10]), int(attr[11]), float(attr[12]), int(attr[13]), int(attr[14]), float(attr[15]), int(attr[16]), float(attr[17]), int(attr[18]), float(attr[19]))
         cur.execute(SQL, VALUES)
         conn.commit()
 
     # record does exist - update record
     else:
         SQL = ("UPDATE tewaaraton_winners "
-                "SET gp = %s, goals = %s, gpg = %s, assists = %s, apg = %s, tp = %s, ppg = %s, ground_balls = %s, gbpg = %s, fo_wins = %s, fo_losses = %s, fo_pct = %s "
+                "SET gp = %s, goals = %s, gpg = %s, assists = %s, apg = %s, tp = %s, ppg = %s, ground_balls = %s, gbpg = %s, fo_wins = %s, fo_losses = %s, fo_pct = %s, goalie_ga = %s, goalie_ga_avg = %s, goalie_saves = %s, goalie_save_pct = %s "
                 "WHERE name = %s AND academic_year = %s;")
-        VALUES = (int(attr[4]), int(attr[5]), float(attr[6]), int(attr[7]), float(attr[8]), int(attr[9]), float(attr[10]), int(attr[11]), float(attr[12]), int(attr[13]), int(attr[14]), float(attr[15]), attr[0], attr[2])
+        VALUES = (int(attr[4]), int(attr[5]), float(attr[6]), int(attr[7]), float(attr[8]), int(attr[9]), float(attr[10]), int(attr[11]), float(attr[12]), int(attr[13]), int(attr[14]), float(attr[15]), int(attr[16]), float(attr[17]), int(attr[18]), float(attr[19]), attr[0], attr[2])
         cur.execute(SQL, VALUES)
         conn.commit()
+
+    # update records with rankings    
+    for key in rankings:
+        print(attr[0] + "(" + attr[2] + "): " + key + " = " + rankings[key])
+        SQL = ("UPDATE tewaaraton_winners "
+                "SET %s = %s "
+                "WHERE name = %s AND academic_year = %s")
+        VALUES = (AsIs(key), int(rankings[key]), attr[0], attr[2])
+        cur.execute(SQL, VALUES)
+        print(cur.rowcount)
+        
